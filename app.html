@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Scoville: how hot is your mix?</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;background:#fdf6f2;color:#33150d;min-height:100vh;padding:24px 14px;display:flex;justify-content:center}
+main{width:100%;max-width:540px}
+h1{font-size:22px;margin-bottom:2px}
+.sub{color:#96604b;font-size:13px;margin-bottom:18px}
+.card{background:#fff;border-radius:14px;box-shadow:0 6px 24px rgba(140,50,20,.08);padding:20px;margin-bottom:16px}
+label{font-size:12px;font-weight:600;color:#96604b;display:block;margin:10px 0 4px;text-transform:uppercase;letter-spacing:.04em}
+input,select{padding:10px 12px;border:1.5px solid #ecd4c7;border-radius:9px;font-size:15px;font-family:inherit;background:#fff}
+input:focus,select:focus{outline:none;border-color:#c1442e}
+.grow{width:100%}
+.result{margin-top:14px;padding:14px;border-radius:10px;background:#fdeee5;display:none}
+.result.show{display:block}
+.big{font-size:18px;font-weight:700;color:#b33415}
+.kv{font-size:13px;color:#7a4a35;margin-top:4px;line-height:1.5}
+.row{display:flex;gap:8px;margin-top:8px;align-items:center}
+.row select{flex:1}.row input{width:90px}
+.addbtn{margin-top:10px;padding:8px 14px;border-radius:9px;border:1.5px solid #c1442e;background:#fff;color:#c1442e;font-size:13px;cursor:pointer}
+.x{border:none;background:none;color:#c1442e;font-size:16px;cursor:pointer;padding:4px}
+a{color:#b33415;text-decoration:none}
+footer{font-size:12px;color:#b08573;text-align:center;margin-top:6px}
+table{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}
+td,th{padding:5px 4px;text-align:left;border-bottom:1px solid #f3ddd0}
+.bar{height:8px;border-radius:4px;background:#f3ddd0;margin-top:6px;overflow:hidden}
+.fill{height:100%;border-radius:4px;background:linear-gradient(90deg,#f5c04a,#e2622b,#a3120a)}
+</style>
+</head>
+<body>
+<main>
+<h1>Scoville</h1>
+<p class="sub">Pepper heat, blend math, and dilution truth</p>
+<div class="card">
+<label>Blend a mash</label>
+<div id="rows"></div>
+<button class="addbtn" id="add">+ add pepper</button>
+<div class="result" id="blend"></div>
+</div>
+<div class="card">
+<label>Into the dish (dilution)</label>
+<div class="row">
+<div><label for="mshu">Mash SHU</label><input id="mshu" value="175000" inputmode="numeric"></div>
+<div><label for="mg">Mash g</label><input id="mg" value="10" inputmode="numeric"></div>
+<div><label for="dg">Dish g</label><input id="dg" value="500" inputmode="numeric"></div>
+</div>
+<div class="result" id="dil"></div>
+</div>
+<div class="card">
+<label>Explore the scale</label>
+<div id="explore"></div>
+</div>
+<footer>SHU values are published ranges; real pods vary. <a href="index.html">About</a></footer>
+</main>
+<script src="engine.js"></script>
+<script>
+var $=function(id){return document.getElementById(id)};
+var esc=function(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML;};
+function fmt(n){return n.toLocaleString();}
+function addRow(pid,g){
+  var div=document.createElement('div');div.className='row';
+  var sel=document.createElement('select');
+  Scoville.list().forEach(function(p){
+    var o=document.createElement('option');o.value=p.id;
+    o.textContent=p.name+' ('+fmt(p.low)+'-'+fmt(p.high)+')';
+    sel.appendChild(o);
+  });
+  if(pid)sel.value=pid;
+  var inp=document.createElement('input');inp.value=g||50;inp.setAttribute('inputmode','numeric');
+  var x=document.createElement('button');x.className='x';x.textContent='\u00d7';
+  x.onclick=function(){div.remove();calc();};
+  sel.onchange=calc;inp.oninput=calc;
+  div.appendChild(sel);div.appendChild(inp);div.appendChild(x);
+  $('rows').appendChild(div);
+}
+function calc(){
+  var rows=[];
+  $('rows').querySelectorAll('.row').forEach(function(r){
+    var s=r.querySelector('select'),i=r.querySelector('input');
+    rows.push({id:s.value,grams:parseFloat(i.value)});
+  });
+  var r=Scoville.blend(rows);
+  var box=$('blend');
+  if(!r){box.classList.remove('show');return;}
+  var eq=Scoville.equivalent(r.shu);
+  box.classList.add('show');
+  box.innerHTML='<div class="big">'+fmt(r.shu)+' SHU &middot; '+r.level+'</div>'+
+   '<div class="kv">'+r.totalGrams+' g blend, about the heat of a '+esc(eq.name)+'.</div>'+
+   '<div class="bar"><div class="fill" style="width:'+Math.min(100,r.shu/2200000*100)+'%"></div></div>';
+  if(r.rows.length>1){
+    var h='<table>';
+    r.rows.forEach(function(u){h+='<tr><td>'+esc(u.name)+'</td><td>'+u.grams+' g</td><td>'+fmt(u.shu)+'</td></tr>';});
+    box.innerHTML+=h+'</table>';
+  }
+}
+function dil(){
+  var shu=parseFloat($('mshu').value),mg=parseFloat($('mg').value),dg=parseFloat($('dg').value);
+  var r=Scoville.dilute(shu,mg,dg);
+  var box=$('dil');
+  if(!r){box.classList.remove('show');return;}
+  var eq=Scoville.equivalent(r.shu);
+  box.classList.add('show');
+  box.innerHTML='<div class="big">'+fmt(r.shu)+' SHU in the dish &middot; '+r.level+'</div>'+
+   '<div class="kv">About like biting a '+esc(eq.name)+'. Dilution is by mass; fat and sugar soften the perceived burn.</div>';
+}
+var ex='';
+Scoville.list().slice().sort(function(a,b){return (a.low+a.high)-(b.low+b.high);}).forEach(function(p){
+  ex+='<tr><td>'+esc(p.name)+'</td><td>'+fmt(p.low)+' - '+fmt(p.high)+'</td></tr>';
+});
+$('explore').innerHTML='<table><tr><th>Pepper</th><th>SHU range</th></tr>'+ex+'</table>';
+$('add').onclick=function(){addRow();calc();};
+['mshu','mg','dg'].forEach(function(i){$(i).addEventListener('input',dil);});
+addRow('habanero',20);addRow('jalapeno',80);
+calc();dil();
+</script>
+</body>
+</html>
